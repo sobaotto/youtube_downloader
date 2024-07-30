@@ -1,30 +1,28 @@
-from selenium.webdriver.chrome.options import Options
-
-options = Options()
-
-options.add_argument("--headless")
-
 from selenium import webdriver
-import chromedriver_binary
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
 import os
 import time
+from selenium.webdriver.common.by import By
 
-#ダウンロードしたい再生リストURLを指定する
-playlist_url = "https://www.youtube.com/playlist?list=hogehogehoge"
+options = Options()
+# options.add_argument("--headless")  # コメントアウト解除で、バックグラウンド実行
+
+service = Service(ChromeDriverManager().install())
+browser = webdriver.Chrome(service=service, options=options)
+
+# ダウンロードしたい再生リストURLを指定する
+playlist_url = "https://www.youtube.com/playlist?list=hogehoge"
 downloader_url = "https://www.y2mate.com/jp3"
 
-#ここからYoutube動画のURLを取得
-
-#以下、①②のどちらかはコメントアウト
-#①ブラウザを起動せずバックグラウンドで実行する
-browser = webdriver.Chrome(options = options)
-#②ブラウザを起動して実行する
-#browser = webdriver.Chrome()
-
+# ここからYoutube動画のURLを取得
 browser.get(playlist_url)
 time.sleep(5)
 
-target_elems = browser.find_elements_by_class_name("yt-simple-endpoint.style-scope.ytd-playlist-video-renderer")
+target_elems = browser.find_elements(
+    "class name", "yt-simple-endpoint.style-scope.ytd-playlist-video-renderer"
+)
 
 urls = []
 for target_elem in target_elems:
@@ -34,35 +32,41 @@ for target_elem in target_elems:
 browser.quit()
 time.sleep(5)
 
-
-#ここからダウンロード処理
+# ここからダウンロード処理
+i = 1
 for url in urls:
-    #以下、①②のどちらかはコメントアウト
-    #①ブラウザを起動せずバックグラウンドで実行する
-    #browser = webdriver.Chrome(options = options)
-    #②ブラウザを起動して実行する
-    browser = webdriver.Chrome()
-    
+    browser = webdriver.Chrome(service=service, options=options)
+
     browser.get(downloader_url)
     time.sleep(10)
-    
-    elem = browser.find_element_by_class_name("form-control")
+
+    elem = browser.find_element("class name", "form-control")
     elem.send_keys(url)
-    elem_btn = browser.find_element_by_id("btn-submit")
+    elem_btn = browser.find_element("id", "btn-submit")
     elem_btn.click()
     time.sleep(5)
 
-    elem_download = browser.find_element_by_xpath("/html/body/div[1]/div[1]/div/div/div[1]/div/div/div/div[4]/div/div[2]/div/div[1]/table/tbody/tr[1]/td[3]/a")
-    elem_download.click()
-    time.sleep(30)
+    elem_download = browser.find_element(
+        By.XPATH, "//div[@id='mp4']//tbody/tr[2]/td[3]/button"
+    )
 
-    elem_download1 = browser.find_element_by_xpath("/html/body/div[1]/div[2]/div[2]/div/div[2]/div[2]/div/a")
-    elem_download1.click()
-    
+    onclick_script = elem_download.get_attribute("onclick")
+    browser.execute_script(onclick_script)
+
+    time.sleep(5)
+    elem_download1 = None
+    while not elem_download1:
+        elem_download1 = browser.find_element(
+            By.CSS_SELECTOR, "a.btn.btn-success.btn-file"
+        )
+        time.sleep(1)
+    href_value = elem_download1.get_attribute("href")
+    browser.get(href_value)
+    time.sleep(2)
     download_prossing_done_checker = False
-    while download_prossing_done_checker == False:
-        time.sleep(10)
-        download_files = os.listdir("/Users/ryota/Downloads")
+    while not download_prossing_done_checker:
+        time.sleep(4)
+        download_files = os.listdir("/Users/sobaotto/Downloads")
         for download_file in download_files:
             if ".crdownload" in download_file:
                 download_prossing_done_checker = False
@@ -70,5 +74,7 @@ for url in urls:
             else:
                 download_prossing_done_checker = True
     browser.quit()
+    print(f"ダウンロード完了！-----{i}/{len(urls)}")
+    i += 1
 
 browser.quit()
